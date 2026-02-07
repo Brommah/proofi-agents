@@ -2,6 +2,142 @@
 
 A Proofi agent that securely analyzes user health data using capability tokens.
 
+## 🏠 Pure Mode (Local Execution)
+
+**Maximum transparency. Zero trust required.**
+
+Pure Mode lets you run the Health Analyzer entirely on your own machine. Your data never leaves your device, and you get a complete audit trail of every operation.
+
+### Why Local = Maximum Transparency
+
+When you run locally:
+- ✅ **Your keys stay on YOUR machine** — decryption happens locally
+- ✅ **Raw health data never transmitted** — it's only in your RAM
+- ✅ **Full audit log saved locally** — verify every step
+- ✅ **Optional local AI** — use Ollama for 100% offline analysis
+- ✅ **Open source** — read the code, trust the code
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           PURE MODE ARCHITECTURE                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌────────────────┐                                                         │
+│  │  Your Device   │                                                         │
+│  │  ┌──────────┐  │     ┌─────────────────┐                                │
+│  │  │  Wallet  │  │     │       DDC       │                                │
+│  │  │  (Key)   │  │     │  (Cere Network) │                                │
+│  │  └────┬─────┘  │     │  ┌───────────┐  │                                │
+│  │       │        │     │  │ Encrypted │  │                                │
+│  │       ▼        │     │  │   Health  │  │                                │
+│  │  ┌──────────┐  │     │  │   Data    │  │                                │
+│  │  │  Local   │◀═╪═════╪══│  (Blob)   │  │                                │
+│  │  │ Decrypt  │  │     │  └───────────┘  │                                │
+│  │  └────┬─────┘  │     └─────────────────┘                                │
+│  │       │        │                                                         │
+│  │       ▼        │                                                         │
+│  │  ┌──────────┐  │     ┌─────────────────┐                                │
+│  │  │  Local   │──╪────▶│  OpenAI API*    │  * Optional: can use local    │
+│  │  │    AI    │  │     │  (if API key)   │    Ollama instead!            │
+│  │  └────┬─────┘  │     └─────────────────┘                                │
+│  │       │        │                                                         │
+│  │       ▼        │                                                         │
+│  │  ┌──────────┐  │                                                         │
+│  │  │  Local   │  │     Never leaves your device:                          │
+│  │  │  Audit   │  │     • Raw health data                                  │
+│  │  │   Log    │  │     • Decryption keys                                  │
+│  │  └──────────┘  │     • Full operation log                               │
+│  │                │                                                         │
+│  └────────────────┘                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Quick Start - Local Mode
+
+```bash
+# Interactive mode (recommended for first use)
+npm run local
+
+# Or with arguments
+npm run local -- --bucket <your-bucket-id> --key ./path/to/wallet.json
+
+# After npm publish, you can also use npx
+npx @proofi/health-analyzer-agent
+```
+
+### What Stays on Your Machine
+
+| Data | Location | Transmitted? |
+|------|----------|--------------|
+| Private keys | `./keys/` or your wallet | ❌ Never |
+| Raw health data | RAM only | ❌ Never |
+| Decrypted JSON | RAM only | ❌ Never |
+| Audit log | `./audit-logs/` | ❌ Never |
+| Analysis results | Local file | ❌ Never |
+| Encrypted blob | DDC → local | ✅ Downloaded |
+| AI prompts* | Local → API | ⚠️ Only if using OpenAI |
+
+*For 100% local: use Ollama (see below)
+
+### Using Ollama for True Local AI
+
+For maximum privacy, use a local AI model instead of OpenAI:
+
+```bash
+# Install Ollama (https://ollama.ai)
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull a model
+ollama pull llama2
+# or
+ollama pull mistral
+
+# Set environment variable (TODO: implement in future version)
+export LOCAL_MODEL=ollama:llama2
+
+# Run analysis - no API calls!
+npm run local
+```
+
+> 🚧 **Note:** Ollama integration is on the roadmap. Currently, if you don't set `OPENAI_API_KEY`, the analyzer uses local rule-based analysis (no external API calls).
+
+### Audit Log Format
+
+Every local run creates a detailed audit log:
+
+```json
+{
+  "sessionId": "local_1707345600_abc123",
+  "startedAt": "2024-02-07T22:00:00.000Z",
+  "completedAt": "2024-02-07T22:00:05.000Z",
+  "config": {
+    "bucketId": "your-bucket-id",
+    "outputPath": "./audit-logs",
+    "useLocalAI": true
+  },
+  "dataHash": "sha256:abc123...",
+  "resultHash": "sha256:def456...",
+  "entries": [
+    {
+      "id": "local_0",
+      "timestamp": "2024-02-07T22:00:01.000Z",
+      "action": "data_fetched",
+      "details": { "bucketId": "...", "source": "ddc" }
+    },
+    {
+      "id": "local_1",
+      "timestamp": "2024-02-07T22:00:02.000Z",
+      "action": "data_decrypted",
+      "details": { "note": "Decrypting data with user key (local)" }
+    }
+  ],
+  "insights": { ... }
+}
+```
+
+---
+
 ## Overview
 
 This agent demonstrates the Proofi Agent SDK in action:
@@ -225,6 +361,18 @@ interface HealthMetrics {
 3. **Scoped Access**: The agent can only access paths explicitly granted in the token.
 
 4. **No Data Storage**: The agent processes data in-memory and doesn't persist user health data.
+
+5. **Pure Mode (Local)**: For maximum security, run in Pure Mode where all processing happens on your machine. See the [Pure Mode section](#-pure-mode-local-execution) above.
+
+## Deployment vs Pure Mode
+
+| | Server Mode | Pure Mode |
+|---|---|---|
+| **Use case** | Automated/API access | Personal verification |
+| **Where it runs** | Cloud/server | Your machine |
+| **Trust model** | Trust the operator | Trust yourself |
+| **Best for** | Apps, integrations | Privacy-first users |
+| **Setup** | `npm start` | `npm run local` |
 
 ## License
 

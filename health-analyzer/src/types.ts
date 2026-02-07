@@ -2,6 +2,9 @@
  * Types for Health Analyzer Agent
  */
 
+// Re-export audit types for use in local mode
+export type { AuditEntry, AuditAction } from './audit.js';
+
 /** Health metrics data structure */
 export interface HealthMetrics {
   steps?: StepsData[];

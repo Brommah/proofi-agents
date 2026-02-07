@@ -11,6 +11,12 @@ dist/
 # Keys - NEVER commit these!
 keys/
 
+# Local audit logs (Pure Mode)
+audit-logs/
+
+# Test data
+test-data/
+
 # Logs
 *.log
 npm-debug.log*

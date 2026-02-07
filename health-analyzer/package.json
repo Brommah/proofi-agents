@@ -4,10 +4,14 @@
   "description": "Health Analyzer Agent - Analyzes user health data using Proofi capability tokens",
   "main": "dist/server.js",
   "type": "module",
+  "bin": {
+    "proofi-health-analyzer": "./dist/local.js"
+  },
   "scripts": {
     "build": "tsc",
     "start": "npx tsx src/server.ts",
     "dev": "tsx watch src/server.ts",
+    "local": "tsx src/local.ts",
     "test": "vitest run"
   },
   "keywords": [

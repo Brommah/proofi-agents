@@ -9,6 +9,20 @@ import OpenAI from 'openai';
 import type { HealthMetrics, HealthInsights, TrendInsight, Recommendation, Alert } from './types.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2:3b';
+
+/**
+ * Check if Ollama is available locally
+ */
+async function isOllamaAvailable(): Promise<boolean> {
+  try {
+    const response = await fetch(`${OLLAMA_URL}/api/tags`, { method: 'GET' });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Main analysis function
@@ -17,16 +31,27 @@ export async function analyzeHealthData(metrics: HealthMetrics): Promise<HealthI
   console.log('[analyze] Starting health data analysis...');
   console.log('[analyze] Data categories:', Object.keys(metrics).filter(k => metrics[k]));
   
-  // Try AI analysis first, fall back to rule-based
+  // Try OpenAI first
   if (OPENAI_API_KEY && OPENAI_API_KEY.startsWith('sk-')) {
     try {
       console.log('[analyze] Using OpenAI for analysis');
       return await analyzeWithOpenAI(metrics);
     } catch (error) {
-      console.warn('[analyze] OpenAI analysis failed, using rule-based:', error);
+      console.warn('[analyze] OpenAI analysis failed, trying Ollama:', error);
+    }
+  }
+  
+  // Try Ollama (local AI)
+  const ollamaAvailable = await isOllamaAvailable();
+  if (ollamaAvailable) {
+    try {
+      console.log(`[analyze] Using Ollama (${OLLAMA_MODEL}) for LOCAL analysis`);
+      return await analyzeWithOllama(metrics);
+    } catch (error) {
+      console.warn('[analyze] Ollama analysis failed, using rule-based:', error);
     }
   } else {
-    console.log('[analyze] No OpenAI API key, using rule-based analysis');
+    console.log('[analyze] No AI available (OpenAI/Ollama), using rule-based analysis');
   }
   
   return analyzeWithRules(metrics);
@@ -100,6 +125,60 @@ Be encouraging and constructive. Focus on actionable insights.`;
     trends: aiInsights.trends || [],
     recommendations: aiInsights.recommendations || [],
     alerts: aiInsights.alerts || [],
+  };
+}
+
+/**
+ * AI-powered analysis using Ollama (local, 100% on-device)
+ */
+async function analyzeWithOllama(metrics: HealthMetrics): Promise<HealthInsights> {
+  const prompt = `You are a health data analyst. Analyze the following health data and respond with ONLY valid JSON (no markdown, no explanation).
+
+Health Data:
+${JSON.stringify(metrics, null, 2)}
+
+Respond with this exact JSON structure:
+{
+  "summary": "2-3 sentence overview of health trends",
+  "trends": [{"category": "steps|sleep|mood", "direction": "improving|stable|declining", "description": "what the trend shows", "period": "timeframe"}],
+  "recommendations": [{"priority": "high|medium|low", "category": "exercise|sleep|stress", "title": "short title", "description": "detailed recommendation", "actionable": true}],
+  "alerts": []
+}`;
+
+  console.log(`[analyze] Sending request to Ollama (${OLLAMA_MODEL})...`);
+  
+  const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      prompt,
+      stream: false,
+      format: 'json',
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Ollama request failed: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  console.log(`[analyze] Ollama response received (${data.response?.length || 0} chars)`);
+  
+  let insights: any;
+  try {
+    insights = JSON.parse(data.response);
+  } catch (e) {
+    console.error('[analyze] Failed to parse Ollama response:', data.response?.substring(0, 200));
+    throw new Error('Invalid JSON from Ollama');
+  }
+  
+  return {
+    generatedAt: new Date().toISOString(),
+    summary: insights.summary || 'Analysis complete.',
+    trends: insights.trends || [],
+    recommendations: insights.recommendations || [],
+    alerts: insights.alerts || [],
   };
 }
 

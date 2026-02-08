@@ -27,6 +27,7 @@ import type { HealthMetrics, HealthInsights, AuditEntry } from './types.js';
 
 interface LocalConfig {
   bucketId: string;
+  cid?: string;  // DDC content ID to fetch
   keyPath?: string;
   outputPath: string;
   useLocalAI: boolean;
@@ -98,13 +99,10 @@ function printStep(step: number, total: number, message: string): void {
  * 2. Download the encrypted health data blob
  * 3. Return the raw encrypted bytes
  */
-async function fetchFromDDC(bucketId: string): Promise<Uint8Array> {
+async function fetchFromDDC(bucketId: string, cid?: string): Promise<Uint8Array> {
   console.log(`  → Connecting to DDC bucket: ${bucketId}`);
   
-  // TODO: Real DDC integration
-  // For now, simulate fetching encrypted data
-  
-  // Check if there's local test data
+  // Check if there's local test data first (for offline testing)
   const testDataPath = path.join(process.cwd(), 'test-data', `${bucketId}.json`);
   if (fs.existsSync(testDataPath)) {
     console.log(`  → Found local test data at ${testDataPath}`);
@@ -112,12 +110,48 @@ async function fetchFromDDC(bucketId: string): Promise<Uint8Array> {
     return new Uint8Array(data);
   }
   
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-  console.log(`  → DDC connection simulated (real DDC integration coming soon)`);
+  // Real DDC integration
+  if (!cid) {
+    console.log(`  → No CID provided, using demo data`);
+    return new Uint8Array([0]);
+  }
   
-  // Return a placeholder that triggers mock data
-  return new Uint8Array([0]);
+  try {
+    const { DdcClient, MAINNET } = await import('@cere-ddc-sdk/ddc-client');
+    
+    console.log(`  → Connecting to Cere DDC Mainnet...`);
+    const client = await DdcClient.create(MAINNET);
+    
+    console.log(`  → Fetching CID: ${cid.substring(0, 20)}...`);
+    const fileResponse = await client.read(BigInt(bucketId), cid);
+    
+    // Read the file content
+    const chunks: Uint8Array[] = [];
+    const reader = fileResponse.body?.getReader();
+    if (!reader) throw new Error('No reader available');
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+    
+    // Combine chunks
+    const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    }
+    
+    console.log(`  → Downloaded ${result.length} bytes from DDC`);
+    return result;
+  } catch (error: any) {
+    console.error(`  ✗ DDC fetch failed: ${error.message}`);
+    console.log(`  → Falling back to demo data`);
+    return new Uint8Array([0]);
+  }
 }
 
 /**
@@ -335,7 +369,7 @@ async function runAnalysis(config: LocalConfig): Promise<{
     note: 'Fetching encrypted data from DDC',
   });
   
-  const encryptedData = await fetchFromDDC(config.bucketId);
+  const encryptedData = await fetchFromDDC(config.bucketId, config.cid);
   console.log(`  ✓ Fetched ${encryptedData.length} bytes from DDC`);
   
   // Decrypt locally
@@ -419,6 +453,11 @@ function parseArgs(): { interactive: boolean; config: Partial<LocalConfig> } {
         i++;
         interactive = false;
         break;
+      case '--cid':
+      case '-c':
+        config.cid = next;
+        i++;
+        break;
       case '--key':
       case '-k':
         config.keyPath = next;
@@ -498,6 +537,7 @@ async function main(): Promise<void> {
     
     const fullConfig: LocalConfig = {
       bucketId: config.bucketId,
+      cid: config.cid,
       keyPath: config.keyPath,
       outputPath: config.outputPath || path.join(process.cwd(), 'audit-logs'),
       useLocalAI: !process.env.OPENAI_API_KEY,

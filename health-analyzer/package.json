@@ -24,12 +24,13 @@
   "author": "Proofi",
   "license": "MIT",
   "dependencies": {
-    "hono": "^4.0.0",
+    "@cere-ddc-sdk/ddc-client": "^2.16.1",
     "@hono/node-server": "^1.8.0",
-    "tweetnacl": "^1.0.3",
-    "tweetnacl-util": "^0.15.1",
+    "dotenv": "^16.3.1",
+    "hono": "^4.0.0",
     "openai": "^4.20.0",
-    "dotenv": "^16.3.1"
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

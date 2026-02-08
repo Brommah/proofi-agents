@@ -19,6 +19,7 @@ import path from 'path';
 import readline from 'readline';
 import { analyzeHealthData } from './analyze.js';
 import { auditLog, hashData } from './audit.js';
+import { unwrapDEK, decryptAES, isTokenExpired, hasScope, type CapabilityToken } from './crypto.js';
 import type { HealthMetrics, HealthInsights, AuditEntry } from './types.js';
 
 // =============================================================================
@@ -28,7 +29,9 @@ import type { HealthMetrics, HealthInsights, AuditEntry } from './types.js';
 interface LocalConfig {
   bucketId: string;
   cid?: string;  // DDC content ID to fetch
-  keyPath?: string;
+  tokenPath?: string;  // Path to capability token JSON
+  agentKeyPath?: string;  // Path to agent's X25519 private key
+  keyPath?: string;  // Legacy: direct key path
   outputPath: string;
   useLocalAI: boolean;
   verbose: boolean;
@@ -148,23 +151,53 @@ async function fetchFromDDC(bucketId: string, cid?: string): Promise<Uint8Array>
  */
 async function decryptData(
   encryptedData: Uint8Array,
-  keyPath?: string
+  token?: CapabilityToken,
+  agentPrivateKey?: Uint8Array
 ): Promise<HealthMetrics> {
   console.log(`  → Decrypting data locally...`);
   
-  // TODO: Real decryption with user's key
-  // For now, return mock data for demonstration
-  
-  if (keyPath && fs.existsSync(keyPath)) {
-    console.log(`  → Using key from: ${keyPath}`);
-    // In real implementation: load key and decrypt
+  // If we have a capability token and agent key, do real decryption
+  if (token && agentPrivateKey) {
+    console.log(`  → Using capability token for decryption`);
+    
+    // Check token validity
+    if (isTokenExpired(token)) {
+      throw new Error('Capability token has expired');
+    }
+    
+    if (!hasScope(token, 'health')) {
+      throw new Error('Token does not grant health data access');
+    }
+    
+    console.log(`  → Token valid, expires in ${token.exp - Math.floor(Date.now()/1000)}s`);
+    
+    // Unwrap DEK using agent's private key
+    console.log(`  → Unwrapping DEK with agent private key...`);
+    const dek = unwrapDEK(token.wrappedDEK, agentPrivateKey);
+    console.log(`  → DEK unwrapped (${dek.length} bytes)`);
+    
+    // Parse the encrypted blob (it contains ciphertext + iv)
+    const encryptedStr = new TextDecoder().decode(encryptedData);
+    let encryptedBlob: { ciphertext: string; iv: string };
+    
+    try {
+      encryptedBlob = JSON.parse(encryptedStr);
+    } catch {
+      throw new Error('Invalid encrypted data format');
+    }
+    
+    // Decrypt with AES-GCM
+    console.log(`  → Decrypting with AES-256-GCM...`);
+    const decrypted = await decryptAES(encryptedBlob.ciphertext, encryptedBlob.iv, dek);
+    const healthData = JSON.parse(decrypted);
+    
+    console.log(`  ✓ Decrypted ${decrypted.length} bytes of health data`);
+    return healthData;
   }
   
-  // Simulate decryption delay
+  // Fallback: use demo data
+  console.log(`  → No token/key provided, using demo data`);
   await new Promise(resolve => setTimeout(resolve, 300));
-  
-  console.log(`  → Decryption simulated (using demo data)`);
-  
   return generateDemoHealthData();
 }
 
@@ -356,13 +389,34 @@ async function runAnalysis(config: LocalConfig): Promise<{
   const encryptedData = await fetchFromDDC(config.bucketId, config.cid);
   console.log(`  ✓ Fetched ${encryptedData.length} bytes from DDC`);
   
+  // Load capability token and agent key if provided
+  let token: CapabilityToken | undefined;
+  let agentPrivateKey: Uint8Array | undefined;
+  
+  if (config.tokenPath && fs.existsSync(config.tokenPath)) {
+    console.log(`  → Loading capability token from ${config.tokenPath}`);
+    token = JSON.parse(fs.readFileSync(config.tokenPath, 'utf-8'));
+    console.log(`  ✓ Token loaded (id: ${token!.id.substring(0, 12)}...)`);
+  }
+  
+  if (config.agentKeyPath && fs.existsSync(config.agentKeyPath)) {
+    console.log(`  → Loading agent private key from ${config.agentKeyPath}`);
+    const keyData = JSON.parse(fs.readFileSync(config.agentKeyPath, 'utf-8'));
+    // Support both raw base64 and structured key files
+    const keyB64 = typeof keyData === 'string' ? keyData : keyData.secretKey || keyData.privateKey;
+    const { decodeBase64 } = await import('tweetnacl-util');
+    agentPrivateKey = decodeBase64(keyB64);
+    console.log(`  ✓ Agent key loaded (${agentPrivateKey.length} bytes)`);
+  }
+  
   // Decrypt locally
   auditLog.log('data_decrypted', {
-    note: 'Decrypting data with user key (local)',
-    keyProvided: !!config.keyPath,
+    note: 'Decrypting data with capability token',
+    tokenProvided: !!token,
+    keyProvided: !!agentPrivateKey,
   });
   
-  const healthData = await decryptData(encryptedData, config.keyPath);
+  const healthData = await decryptData(encryptedData, token, agentPrivateKey);
   const dataHash = hashData(healthData);
   console.log(`  ✓ Decrypted health data (hash: ${dataHash.substring(0, 16)}...)`);
   
@@ -440,6 +494,15 @@ function parseArgs(): { interactive: boolean; config: Partial<LocalConfig> } {
       case '--cid':
       case '-c':
         config.cid = next;
+        i++;
+        break;
+      case '--token':
+      case '-t':
+        config.tokenPath = next;
+        i++;
+        break;
+      case '--agent-key':
+        config.agentKeyPath = next;
         i++;
         break;
       case '--key':
@@ -522,6 +585,8 @@ async function main(): Promise<void> {
     const fullConfig: LocalConfig = {
       bucketId: config.bucketId,
       cid: config.cid,
+      tokenPath: config.tokenPath,
+      agentKeyPath: config.agentKeyPath,
       keyPath: config.keyPath,
       outputPath: config.outputPath || path.join(process.cwd(), 'audit-logs'),
       useLocalAI: !process.env.OPENAI_API_KEY,

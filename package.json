@@ -1,0 +1,15 @@
+{
+  "name": "proofi-agents",
+  "version": "1.0.0",
+  "description": "Proofi Premium Health Agents — sovereign AI health analysis powered by local Ollama",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "agents": "node run-agents.js",
+    "demo": "node server.js --demo"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "fast-xml-parser": "^4.3.0"
+  }
+}

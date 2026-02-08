@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proofi — Sovereign Health Intelligence</title>
+  <style>
+    :root {
+      --bg: #0A0A0C;
+      --surface: #111115;
+      --surface2: #1A1A1F;
+      --border: #2A2A30;
+      --text: #E8E8EC;
+      --text-dim: #888890;
+      --text-muted: #555560;
+      --cyan: #00E5FF;
+      --cyan-dim: rgba(0,229,255,0.15);
+      --green: #00FF88;
+      --green-dim: rgba(0,255,136,0.12);
+      --amber: #FFB800;
+      --amber-dim: rgba(255,184,0,0.12);
+      --red: #FF4444;
+      --red-dim: rgba(255,68,68,0.12);
+      --purple: #A855F7;
+      --radius: 12px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 0 32px;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--cyan), var(--green));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 18px; color: #000;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .sovereignty-badge {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--green-dim);
+      border: 1px solid rgba(0,255,136,0.2);
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+    .sovereignty-dot {
+      width: 6px; height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Status Bar */
+    .status-bar {
+      display: flex; gap: 12px; margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    .status-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .status-chip .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+    }
+    .dot-green { background: var(--green); }
+    .dot-amber { background: var(--amber); }
+    .dot-red { background: var(--red); }
+
+    /* Data Section */
+    .section {
+      margin-bottom: 28px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    /* Setup Card */
+    .setup-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+    }
+    .setup-row {
+      display: flex; gap: 12px; margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .goal-chip {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text-dim);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .goal-chip:hover { border-color: var(--cyan); color: var(--text); }
+    .goal-chip.active {
+      border-color: var(--cyan);
+      background: var(--cyan-dim);
+      color: var(--cyan);
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--cyan), var(--green));
+      color: #000;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,229,255,0.3); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-secondary {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-secondary:hover { border-color: var(--text-muted); }
+
+    /* Agent Cards */
+    .agent-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .agent-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .agent-card:hover { border-color: var(--cyan); transform: translateY(-1px); }
+    .agent-card.running {
+      border-color: var(--amber);
+      animation: glow-amber 2s infinite;
+    }
+    .agent-card.complete { border-color: var(--green); }
+    @keyframes glow-amber {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,184,0,0); }
+      50% { box-shadow: 0 0 20px rgba(255,184,0,0.1); }
+    }
+    .agent-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .agent-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .agent-icon.intel { background: var(--cyan-dim); }
+    .agent-icon.trend { background: var(--amber-dim); }
+    .agent-icon.brief { background: var(--green-dim); }
+    .agent-name { font-weight: 600; font-size: 15px; }
+    .agent-desc { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+    .agent-status {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .agent-tag {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .tag-local { background: var(--green-dim); color: var(--green); }
+    .tag-running { background: var(--amber-dim); color: var(--amber); }
+    .tag-ready { background: var(--surface2); color: var(--text-muted); }
+    .tag-done { background: var(--green-dim); color: var(--green); }
+
+    /* Run All Button */
+    .run-all-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 20px 0;
+    }
+
+    /* Results */
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .result-headline {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      line-height: 1.4;
+      color: var(--cyan);
+    }
+    .insight-card {
+      background: var(--surface2);
+      border-left: 3px solid var(--cyan);
+      border-radius: 0 8px 8px 0;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .insight-card.severity-high { border-left-color: var(--red); }
+    .insight-card.severity-medium { border-left-color: var(--amber); }
+    .insight-card.severity-low { border-left-color: var(--green); }
+    .insight-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+    .insight-text {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+    .insight-action {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--green);
+      font-weight: 500;
+    }
+    .insight-sources {
+      margin-top: 8px;
+      display: flex;
+      gap: 6px;
+    }
+    .source-tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--text-muted);
+    }
+
+    /* Scores */
+    .scores-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 20px 0;
+    }
+    .score-card {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+    .score-value {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .score-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .score-good { color: var(--green); }
+    .score-ok { color: var(--amber); }
+    .score-bad { color: var(--red); }
+
+    /* Weekly Brief */
+    .brief-greeting {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .brief-section {
+      margin-bottom: 20px;
+    }
+    .brief-section-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .brief-item {
+      padding: 8px 0;
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      border-bottom: 1px solid var(--border);
+    }
+    .brief-item:last-child { border-bottom: none; }
+    .brief-focus {
+      background: var(--cyan-dim);
+      border: 1px solid rgba(0,229,255,0.2);
+      border-radius: 10px;
+      padding: 18px;
+      margin-top: 16px;
+    }
+    .brief-focus-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--cyan);
+      margin-bottom: 6px;
+    }
+    .brief-focus-text {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    /* Loading */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--cyan);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Data stats mini display */
+    .data-stats {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .data-stat {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: var(--surface2);
+      color: var(--text-dim);
+    }
+    .data-stat strong { color: var(--text); }
+
+    /* Wallet Banner */
+    .wallet-banner {
+      background: linear-gradient(135deg, rgba(0,229,255,0.08), rgba(0,255,136,0.08));
+      border: 1px solid rgba(0,229,255,0.2);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .wallet-info { display: flex; align-items: center; gap: 12px; }
+    .wallet-avatar {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--cyan), var(--green));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .wallet-address { font-family: monospace; font-size: 12px; color: var(--text-dim); }
+    .wallet-label { font-size: 13px; font-weight: 600; color: var(--green); }
+
+    /* Consent Modal */
+    .consent-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .consent-card {
+      background: var(--bg);
+      border: 2px solid var(--cyan);
+      border-radius: 16px;
+      padding: 28px;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 8px 40px rgba(0,229,255,0.15);
+    }
+    .consent-header {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 18px;
+    }
+    .consent-title { font-size: 16px; font-weight: 700; }
+    .consent-subtitle { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .consent-data-list { margin: 16px 0; }
+    .consent-data-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--surface);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+    .consent-data-item .required {
+      font-size: 10px; font-weight: 600;
+      color: var(--cyan);
+      text-transform: uppercase;
+    }
+    .consent-data-item .optional {
+      font-size: 10px; font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .consent-toggle {
+      width: 36px; height: 20px;
+      border-radius: 10px;
+      background: var(--green);
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .consent-toggle::after {
+      content: '';
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: white;
+      position: absolute;
+      top: 2px; right: 2px;
+      transition: transform 0.2s;
+    }
+    .consent-toggle.off { background: var(--border); }
+    .consent-toggle.off::after { transform: translateX(-16px); }
+    .consent-meta {
+      display: flex; gap: 16px;
+      padding: 12px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 12px;
+    }
+    .consent-meta-item {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .consent-meta-item strong { color: var(--text-dim); }
+    .consent-actions {
+      display: flex; gap: 10px;
+      margin-top: 16px;
+    }
+    .consent-actions .btn { flex: 1; justify-content: center; }
+
+    /* Audit Trail */
+    .audit-section { margin-top: 24px; }
+    .audit-entry {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .audit-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+    .audit-dot.connect { background: var(--cyan); }
+    .audit-dot.token { background: var(--amber); }
+    .audit-dot.execute { background: var(--green); }
+    .audit-dot.complete { background: var(--green); }
+    .audit-dot.revoke { background: var(--text-muted); }
+    .audit-dot.sign { background: var(--purple); }
+    .audit-action { font-weight: 600; color: var(--text); }
+    .audit-time { color: var(--text-muted); font-family: monospace; }
+    .audit-hash {
+      font-family: monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+    .audit-valid {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 600;
+      color: var(--green);
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 40px;
+      padding: 20px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Share button */
+    .share-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .share-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 24px;
+    }
+    .tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      background: none;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active {
+      background: var(--surface2);
+      color: var(--text);
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 600px) {
+      .scores-grid { grid-template-columns: repeat(2, 1fr); }
+      .header { flex-direction: column; gap: 12px; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <div class="logo">P</div>
+        <h1>Proofi Health</h1>
+      </div>
+      <div class="sovereignty-badge">
+        <div class="sovereignty-dot"></div>
+        100% LOCAL — YOUR DATA, YOUR DEVICE
+      </div>
+    </div>
+
+    <!-- Wallet Banner -->
+    <div class="wallet-banner hidden" id="walletBanner">
+      <div class="wallet-info">
+        <div class="wallet-avatar">🔐</div>
+        <div>
+          <div class="wallet-label" id="walletLabel">Wallet Connected</div>
+          <div class="wallet-address" id="walletAddress"></div>
+        </div>
+      </div>
+      <div class="sovereignty-badge" style="background:var(--cyan-dim);border-color:rgba(0,229,255,0.2);color:var(--cyan);">
+        SOVEREIGN MODE
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar" id="statusBar">
+      <div class="status-chip">
+        <div class="dot" id="ollamaDot"></div>
+        <span id="ollamaStatus">Checking Ollama...</span>
+      </div>
+      <div class="status-chip">
+        <div class="dot" id="dataDot"></div>
+        <span id="dataStatus">No data loaded</span>
+      </div>
+    </div>
+
+    <!-- Setup -->
+    <div class="section" id="setupSection">
+      <div class="section-title">Get Started</div>
+      <div class="setup-card">
+        <div style="margin-bottom: 18px;">
+          <div style="font-weight: 600; margin-bottom: 8px;">Your Goals</div>
+          <div class="setup-row" id="goalsRow">
+            <div class="goal-chip active" data-goal="Better Sleep">Better Sleep</div>
+            <div class="goal-chip active" data-goal="More Energy">More Energy</div>
+            <div class="goal-chip" data-goal="Less Stress">Less Stress</div>
+            <div class="goal-chip" data-goal="Fitness">Fitness</div>
+            <div class="goal-chip" data-goal="Weight">Weight</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <button class="btn btn-primary" onclick="loadSampleData()">Load Sample Data (90 days)</button>
+          <label class="btn btn-secondary" style="cursor: pointer;">
+            Upload Apple Health XML
+            <input type="file" accept=".xml" style="display:none" onchange="uploadXML(this)">
+          </label>
+        </div>
+        <div class="data-stats hidden" id="dataStats"></div>
+      </div>
+    </div>
+
+    <!-- Agents -->
+    <div class="section" id="agentsSection">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div class="section-title" style="margin: 0;">Agents</div>
+        <button class="btn btn-primary" id="runAllBtn" onclick="runAll()" disabled>
+          Run All Agents
+        </button>
+      </div>
+      <div class="agent-grid">
+        <div class="agent-card" id="card-intel" onclick="runAgent('cross-source')">
+          <div class="agent-header">
+            <div class="agent-icon intel">🔬</div>
+            <div class="agent-name">Cross-Source Health Intel</div>
+          </div>
+          <div class="agent-desc">Correlates sleep, HR, HRV, workouts, and SpO2 to find patterns no single app can see.</div>
+          <div class="agent-status">
+            <span class="agent-tag tag-local">LOCAL ONLY</span>
+            <span class="agent-tag tag-ready" id="status-intel">READY</span>
+          </div>
+        </div>
+        <div class="agent-card" id="card-trend" onclick="runAgent('trend')">
+          <div class="agent-header">
+            <div class="agent-icon trend">📈</div>
+            <div class="agent-name">Trend Predictor</div>
+          </div>
+          <div class="agent-desc">Analyzes 30-90 days of data to detect slow-moving trends and predict issues before they surface.</div>
+          <div class="agent-status">
+            <span class="agent-tag tag-local">LOCAL ONLY</span>
+            <span class="agent-tag tag-ready" id="status-trend">READY</span>
+          </div>
+        </div>
+        <div class="agent-card" id="card-brief" onclick="runAgent('brief')">
+          <div class="agent-header">
+            <div class="agent-icon brief">📋</div>
+            <div class="agent-name">Weekly Health Brief</div>
+          </div>
+          <div class="agent-desc">Your Monday morning summary — all data, one brief, personalized to your goals.</div>
+          <div class="agent-status">
+            <span class="agent-tag tag-local">LOCAL ONLY</span>
+            <span class="agent-tag tag-ready" id="status-brief">READY</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="section hidden" id="resultsSection">
+      <div class="section-title">Results</div>
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('intel')">Cross-Source</button>
+        <button class="tab" onclick="showTab('trend')">Trends</button>
+        <button class="tab" onclick="showTab('brief')">Weekly Brief</button>
+      </div>
+
+      <div id="tab-intel"></div>
+      <div id="tab-trend" class="hidden"></div>
+      <div id="tab-brief" class="hidden"></div>
+    </div>
+
+    <!-- Audit Trail -->
+    <div class="section hidden" id="auditSection">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div class="section-title" style="margin:0;">Audit Trail</div>
+        <div>
+          <span class="audit-valid" id="chainStatus"></span>
+          <button class="btn btn-secondary" style="margin-left:8px;padding:6px 12px;font-size:11px;" onclick="exportAudit()">Export</button>
+        </div>
+      </div>
+      <div class="result-card" style="padding:16px;">
+        <div id="auditEntries"></div>
+      </div>
+    </div>
+
+    <!-- Consent Modal Container -->
+    <div id="consentModal"></div>
+
+    <!-- Footer -->
+    <div class="footer">
+      Proofi Agents v1.0 — Powered by Ollama (local) — Zero network calls — Your data never leaves this machine
+    </div>
+  </div>
+
+  <script>
+    let state = { ollama: false, hasData: false };
+
+    // ─── Inline Proofi SDK ──────────────────────────────
+    class ProofiSDK {
+      constructor() {
+        this.wallet = null;
+        this.auditChain = [];
+        this.tokens = new Map();
+      }
+
+      isExtensionAvailable() {
+        return !!window.__proofi_extension__?.connected;
+      }
+
+      getWalletState() {
+        const ext = window.__proofi_extension__;
+        if (!ext?.connected) return null;
+        return { address: ext.address, email: ext.email, connected: true };
+      }
+
+      createAccessToken(agentId, scopes, durationMs = 3600000) {
+        const tokenId = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+        const agentKey = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(15))));
+        const token = {
+          tokenId, agentId, scopes,
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + durationMs).toISOString(),
+          agentKey, revoked: false
+        };
+        this.tokens.set(tokenId, token);
+        return token;
+      }
+
+      revokeToken(tokenId) {
+        const token = this.tokens.get(tokenId);
+        if (token) token.revoked = true;
+      }
+
+      async addAuditEntry(action, details) {
+        const prevHash = this.auditChain.length > 0
+          ? this.auditChain[this.auditChain.length - 1].hash
+          : '0'.repeat(64);
+        const entry = { timestamp: Date.now(), action, details, prevHash };
+        const data = JSON.stringify(entry);
+        const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(data));
+        entry.hash = btoa(String.fromCharCode(...new Uint8Array(hashBuf)));
+        this.auditChain.push(entry);
+        renderAuditTrail();
+        return entry;
+      }
+
+      async verifyChain() {
+        for (let i = 0; i < this.auditChain.length; i++) {
+          const entry = this.auditChain[i];
+          const expectedPrev = i === 0 ? '0'.repeat(64) : this.auditChain[i - 1].hash;
+          if (entry.prevHash !== expectedPrev) return { valid: false, brokenAt: i };
+          const { hash, ...rest } = entry;
+          const data = JSON.stringify({ ...rest });
+          const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(data));
+          const computed = btoa(String.fromCharCode(...new Uint8Array(hashBuf)));
+          if (computed !== hash) return { valid: false, brokenAt: i };
+        }
+        return { valid: true, entries: this.auditChain.length };
+      }
+
+      exportAudit(meta = {}) {
+        return {
+          version: '1.0',
+          exportedAt: new Date().toISOString(),
+          wallet: this.wallet?.address || 'local-demo',
+          ...meta,
+          entries: this.auditChain,
+          verification: {
+            algorithm: 'SHA-256',
+            chainValid: true,
+            finalHash: this.auditChain.length
+              ? this.auditChain[this.auditChain.length - 1].hash : null
+          }
+        };
+      }
+    }
+
+    const sdk = new ProofiSDK();
+
+    // ─── Agent Metadata ─────────────────────────────────
+    const AGENTS = {
+      'cross-source': {
+        id: 'proofi-cross-source-intel', name: 'Cross-Source Health Intel',
+        version: '1.0.0', icon: '🔬', apiRoute: 'cross-source',
+        requiredData: ['sleep', 'heartRate', 'hrv'],
+        optionalData: ['workouts', 'spo2', 'restingHR', 'steps', 'activeEnergy', 'bodyMass'],
+        accessDuration: '1h'
+      },
+      'trend': {
+        id: 'proofi-trend-predictor', name: 'Trend Predictor',
+        version: '1.0.0', icon: '📈', apiRoute: 'trend',
+        requiredData: ['sleep'],
+        optionalData: ['hrv', 'restingHR', 'workouts', 'spo2', 'bodyMass', 'steps'],
+        accessDuration: '1h'
+      },
+      'brief': {
+        id: 'proofi-weekly-brief', name: 'Weekly Health Brief',
+        version: '1.0.0', icon: '📋', apiRoute: 'brief',
+        requiredData: ['sleep'],
+        optionalData: ['hrv', 'restingHR', 'heartRate', 'workouts', 'spo2', 'steps', 'activeEnergy', 'bodyMass'],
+        accessDuration: '1h'
+      }
+    };
+
+    // ─── Wallet Detection ───────────────────────────────
+    function detectWallet() {
+      const wallet = sdk.getWalletState();
+      if (wallet) {
+        sdk.wallet = wallet;
+        const banner = document.getElementById('walletBanner');
+        banner.classList.remove('hidden');
+        document.getElementById('walletLabel').textContent = wallet.email || 'Wallet Connected';
+        document.getElementById('walletAddress').textContent =
+          wallet.address.slice(0, 8) + '...' + wallet.address.slice(-6);
+      }
+    }
+
+    // Listen for late wallet injection
+    window.addEventListener('proofi-extension-ready', detectWallet);
+
+    // ─── Consent Modal ──────────────────────────────────
+    let consentResolve = null;
+    let consentOptionalState = {};
+
+    function showConsentModal(agentName) {
+      const agent = AGENTS[agentName];
+      if (!agent) return Promise.resolve(true);
+
+      consentOptionalState = {};
+      agent.optionalData.forEach(d => consentOptionalState[d] = true);
+
+      return new Promise((resolve) => {
+        consentResolve = resolve;
+
+        const modal = document.getElementById('consentModal');
+        modal.innerHTML = `
+          <div class="consent-overlay" onclick="if(event.target===this){denyConsent();}">
+            <div class="consent-card">
+              <div class="consent-header">
+                <div class="agent-icon ${agentName === 'cross-source' ? 'intel' : agentName}" style="width:36px;height:36px;font-size:18px;">${agent.icon}</div>
+                <div>
+                  <div class="consent-title">${agent.name}</div>
+                  <div class="consent-subtitle">requests access to your health data</div>
+                </div>
+              </div>
+
+              <div class="consent-data-list">
+                ${agent.requiredData.map(d => `
+                  <div class="consent-data-item">
+                    <span>${formatDataType(d)}</span>
+                    <span class="required">Required</span>
+                  </div>
+                `).join('')}
+                ${agent.optionalData.map(d => `
+                  <div class="consent-data-item">
+                    <span>${formatDataType(d)}</span>
+                    <div class="consent-toggle" id="toggle-${d}" onclick="toggleOptional('${d}')"></div>
+                  </div>
+                `).join('')}
+              </div>
+
+              <div class="consent-meta">
+                <div class="consent-meta-item"><strong>Duration:</strong> ${agent.accessDuration}</div>
+                <div class="consent-meta-item"><strong>Processing:</strong> Local only</div>
+                <div class="consent-meta-item"><strong>Network:</strong> Zero calls</div>
+              </div>
+
+              <div class="consent-actions">
+                <button class="btn btn-secondary" onclick="denyConsent()">Deny</button>
+                <button class="btn btn-primary" onclick="approveConsent()">Approve Access</button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function toggleOptional(dataType) {
+      consentOptionalState[dataType] = !consentOptionalState[dataType];
+      const el = document.getElementById(`toggle-${dataType}`);
+      el.classList.toggle('off', !consentOptionalState[dataType]);
+    }
+
+    function approveConsent() {
+      document.getElementById('consentModal').innerHTML = '';
+      if (consentResolve) consentResolve(true);
+      consentResolve = null;
+    }
+
+    function denyConsent() {
+      document.getElementById('consentModal').innerHTML = '';
+      if (consentResolve) consentResolve(false);
+      consentResolve = null;
+    }
+
+    function formatDataType(key) {
+      const labels = {
+        sleep: 'Sleep Data', heartRate: 'Heart Rate', hrv: 'HRV (Heart Rate Variability)',
+        workouts: 'Workouts', spo2: 'Blood Oxygen (SpO2)', restingHR: 'Resting Heart Rate',
+        steps: 'Steps', activeEnergy: 'Active Energy', bodyMass: 'Body Mass',
+        respiratoryRate: 'Respiratory Rate'
+      };
+      return labels[key] || key;
+    }
+
+    // ─── Audit Trail Rendering ──────────────────────────
+    function renderAuditTrail() {
+      if (sdk.auditChain.length === 0) return;
+
+      const section = document.getElementById('auditSection');
+      section.classList.remove('hidden');
+
+      const el = document.getElementById('auditEntries');
+      const dotClass = {
+        WALLET_CONNECTED: 'connect', TOKEN_CREATED: 'token',
+        AGENT_EXECUTED: 'execute', ANALYSIS_COMPLETE: 'complete',
+        TOKEN_REVOKED: 'revoke', CHAIN_SIGNED: 'sign',
+        CONSENT_GRANTED: 'connect', DATA_ACCESS: 'execute'
+      };
+
+      el.innerHTML = sdk.auditChain.map(entry => `
+        <div class="audit-entry">
+          <div class="audit-dot ${dotClass[entry.action] || 'connect'}"></div>
+          <div style="flex:1;">
+            <div>
+              <span class="audit-action">${entry.action}</span>
+              <span class="audit-time">${new Date(entry.timestamp).toLocaleTimeString()}</span>
+            </div>
+            <div class="audit-hash">hash: ${entry.hash.slice(0, 24)}...</div>
+          </div>
+        </div>
+      `).join('');
+
+      // Verify chain and update status
+      sdk.verifyChain().then(result => {
+        const statusEl = document.getElementById('chainStatus');
+        if (result.valid) {
+          statusEl.innerHTML = `<div class="sovereignty-dot" style="width:5px;height:5px;background:var(--green);"></div> Chain valid (${result.entries} entries)`;
+        } else {
+          statusEl.innerHTML = `<span style="color:var(--red);">Chain broken at entry ${result.brokenAt}</span>`;
+        }
+      });
+    }
+
+    async function exportAudit() {
+      const chainResult = await sdk.verifyChain();
+      const auditData = sdk.exportAudit({ goals: getGoals() });
+      auditData.verification.chainValid = chainResult.valid;
+      auditData.verification.entriesVerified = chainResult.entries || 0;
+      const blob = new Blob([JSON.stringify(auditData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `proofi-audit-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Init
+    detectWallet();
+    checkStatus();
+
+    // Goal toggles
+    document.querySelectorAll('.goal-chip').forEach(chip => {
+      chip.addEventListener('click', () => chip.classList.toggle('active'));
+    });
+
+    function getGoals() {
+      return [...document.querySelectorAll('.goal-chip.active')].map(c => c.dataset.goal);
+    }
+
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/status');
+        state = await res.json();
+
+        const ollamaDot = document.getElementById('ollamaDot');
+        const ollamaStatus = document.getElementById('ollamaStatus');
+        const dataDot = document.getElementById('dataDot');
+        const dataStatus = document.getElementById('dataStatus');
+        const runAllBtn = document.getElementById('runAllBtn');
+
+        if (state.ollama) {
+          ollamaDot.className = 'dot dot-green';
+          ollamaStatus.textContent = `Ollama ready (${state.models.join(', ')})`;
+        } else {
+          ollamaDot.className = 'dot dot-red';
+          ollamaStatus.textContent = 'Ollama offline — run: brew services start ollama';
+        }
+
+        if (state.hasData) {
+          dataDot.className = 'dot dot-green';
+          const total = Object.values(state.dataStats).reduce((s, n) => s + n, 0);
+          dataStatus.textContent = `${total.toLocaleString()} records loaded`;
+          runAllBtn.disabled = !state.ollama;
+          showDataStats(state.dataStats);
+        } else {
+          dataDot.className = 'dot dot-amber';
+          dataStatus.textContent = 'No data loaded';
+          runAllBtn.disabled = true;
+        }
+      } catch (err) {
+        document.getElementById('ollamaDot').className = 'dot dot-red';
+        document.getElementById('ollamaStatus').textContent = 'Server not responding';
+      }
+    }
+
+    function showDataStats(stats) {
+      const el = document.getElementById('dataStats');
+      el.classList.remove('hidden');
+      el.innerHTML = Object.entries(stats)
+        .filter(([, v]) => v > 0)
+        .map(([k, v]) => `<div class="data-stat"><strong>${v}</strong> ${k}</div>`)
+        .join('');
+    }
+
+    async function loadSampleData() {
+      const btn = event.target;
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+      try {
+        const res = await fetch('/api/data/sample', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days: 90, goals: getGoals() })
+        });
+        const data = await res.json();
+        btn.textContent = `Loaded ${data.totalRecords.toLocaleString()} records`;
+        checkStatus();
+      } catch (err) {
+        btn.textContent = 'Error — try again';
+        btn.disabled = false;
+      }
+    }
+
+    async function uploadXML(input) {
+      if (!input.files[0]) return;
+      const file = input.files[0];
+      const text = await file.text();
+      try {
+        const res = await fetch('/api/data/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ xml: text, goals: getGoals() })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          checkStatus();
+        } else {
+          alert('Error parsing XML: ' + (data.error || 'unknown'));
+        }
+      } catch (err) {
+        alert('Upload failed: ' + err.message);
+      }
+    }
+
+    async function runAgent(name) {
+      if (!state.hasData || !state.ollama) return;
+
+      // 1. Show consent modal
+      const approved = await showConsentModal(name);
+      if (!approved) return;
+
+      const agent = AGENTS[name];
+      const statusMap = { 'cross-source': 'intel', trend: 'trend', brief: 'brief' };
+      const statusEl = document.getElementById(`status-${statusMap[name]}`);
+      const card = document.getElementById(`card-${statusMap[name]}`);
+
+      // 2. Log consent granted
+      await sdk.addAuditEntry('CONSENT_GRANTED', {
+        agentId: agent.id,
+        requiredData: agent.requiredData,
+        optionalData: Object.entries(consentOptionalState)
+          .filter(([, v]) => v).map(([k]) => k)
+      });
+
+      // 3. Log wallet connection
+      const wallet = sdk.getWalletState();
+      await sdk.addAuditEntry('WALLET_CONNECTED', {
+        walletAddress: wallet?.address || 'local-demo',
+        extensionConnected: !!wallet
+      });
+
+      // 4. Create scoped access token
+      const scopes = [
+        ...agent.requiredData.map(d => `health/${d}/*`),
+        ...Object.entries(consentOptionalState)
+          .filter(([, v]) => v).map(([k]) => `health/${k}/*`)
+      ];
+      const token = sdk.createAccessToken(agent.id, scopes, 3600000);
+
+      await sdk.addAuditEntry('TOKEN_CREATED', {
+        tokenId: token.tokenId,
+        agentId: agent.id,
+        scopes: token.scopes,
+        expiresAt: token.expiresAt
+      });
+
+      // 5. Run the agent
+      statusEl.className = 'agent-tag tag-running';
+      statusEl.innerHTML = '<span class="spinner"></span> ANALYZING...';
+      card.classList.add('running');
+      card.classList.remove('complete');
+
+      try {
+        await sdk.addAuditEntry('AGENT_EXECUTED', {
+          tokenId: token.tokenId,
+          agentId: agent.id,
+          agentVersion: agent.version,
+          processingLocation: 'local',
+          model: 'ollama/llama3.2'
+        });
+
+        const res = await fetch(`/api/agent/${name}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ goals: getGoals() })
+        });
+        const data = await res.json();
+
+        if (data.error) throw new Error(data.error);
+
+        // 6. Log analysis complete
+        await sdk.addAuditEntry('ANALYSIS_COMPLETE', {
+          tokenId: token.tokenId,
+          agentId: agent.id,
+          processingTime: data.processingTime,
+          model: data.model
+        });
+
+        // 7. Revoke token
+        sdk.revokeToken(token.tokenId);
+        await sdk.addAuditEntry('TOKEN_REVOKED', {
+          tokenId: token.tokenId,
+          reason: 'analysis_complete'
+        });
+
+        // 8. Sign chain if wallet available
+        if (wallet && window.__proofi_extension__?.signMessage) {
+          try {
+            const chainHash = sdk.auditChain[sdk.auditChain.length - 1].hash;
+            const signature = await window.__proofi_extension__.signMessage(chainHash);
+            await sdk.addAuditEntry('CHAIN_SIGNED', {
+              signature: signature.slice(0, 20) + '...',
+              signer: wallet.address
+            });
+          } catch (e) { console.warn('Wallet signing skipped:', e.message); }
+        }
+
+        statusEl.className = 'agent-tag tag-done';
+        statusEl.textContent = `DONE (${(data.processingTime / 1000).toFixed(1)}s)`;
+        card.classList.remove('running');
+        card.classList.add('complete');
+
+        renderResult(name, data);
+      } catch (err) {
+        statusEl.className = 'agent-tag tag-ready';
+        statusEl.textContent = 'ERROR';
+        card.classList.remove('running');
+        alert(`Agent error: ${err.message}`);
+      }
+    }
+
+    async function runAll() {
+      const btn = document.getElementById('runAllBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Running all agents...';
+
+      for (const name of ['cross-source', 'trend', 'brief']) {
+        await runAgent(name);
+      }
+
+      btn.innerHTML = 'All complete!';
+      setTimeout(() => {
+        btn.innerHTML = 'Run All Agents';
+        btn.disabled = false;
+      }, 3000);
+    }
+
+    function renderResult(name, data) {
+      document.getElementById('resultsSection').classList.remove('hidden');
+
+      if (name === 'cross-source') renderIntel(data);
+      else if (name === 'trend') renderTrend(data);
+      else if (name === 'brief') renderBrief(data);
+    }
+
+    function renderIntel(data) {
+      const el = document.getElementById('tab-intel');
+      const insights = data.insights;
+
+      if (insights?.raw) {
+        el.innerHTML = `<div class="result-card"><pre style="white-space:pre-wrap;font-size:13px;color:var(--text-dim);">${insights.raw}</pre></div>`;
+        return;
+      }
+
+      let html = '';
+
+      if (insights?.headline) {
+        html += `<div class="result-headline">${insights.headline}</div>`;
+      }
+
+      if (insights?.scores) {
+        html += `<div class="scores-grid">
+          ${scoreCard('Sleep', insights.scores.sleep)}
+          ${scoreCard('Recovery', insights.scores.recovery)}
+          ${scoreCard('Activity', insights.scores.activity)}
+          ${scoreCard('Overall', insights.scores.overall)}
+        </div>`;
+      }
+
+      if (insights?.insights?.length) {
+        html += insights.insights.map(i => `
+          <div class="insight-card severity-${i.severity || 'medium'}">
+            <div class="insight-title">${i.title}</div>
+            <div class="insight-text">${i.finding}</div>
+            ${i.why_it_matters ? `<div class="insight-text" style="margin-top:6px;font-style:italic;">${i.why_it_matters}</div>` : ''}
+            ${i.action ? `<div class="insight-action">→ ${i.action}</div>` : ''}
+            <div class="insight-sources">
+              ${(i.sources || []).map(s => `<span class="source-tag">${s}</span>`).join('')}
+              ${i.shareable ? `<button class="share-btn" onclick="copyShare('${escape(i.shareable)}')">Share</button>` : ''}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      if (insights?.top_recommendation) {
+        html += `<div class="brief-focus" style="margin-top:16px;">
+          <div class="brief-focus-title">Top Recommendation</div>
+          <div class="brief-focus-text">${insights.top_recommendation}</div>
+        </div>`;
+      }
+
+      html += `<div style="margin-top:16px;font-size:11px;color:var(--text-muted);">
+        ${data.recordsAnalyzed} records analyzed · ${data.correlationsFound} cross-source correlations · ${(data.processingTime/1000).toFixed(1)}s · 100% local
+      </div>`;
+
+      el.innerHTML = `<div class="result-card">${html}</div>`;
+    }
+
+    function renderTrend(data) {
+      const el = document.getElementById('tab-trend');
+      const a = data.analysis;
+
+      if (a?.raw) {
+        el.innerHTML = `<div class="result-card"><pre style="white-space:pre-wrap;font-size:13px;color:var(--text-dim);">${a.raw}</pre></div>`;
+        return;
+      }
+
+      let html = '';
+      if (a?.headline) html += `<div class="result-headline">${a.headline}</div>`;
+
+      if (a?.trends?.length) {
+        html += a.trends.map(t => `
+          <div class="insight-card severity-${t.risk_level || 'medium'}">
+            <div class="insight-title">${t.metric} — ${t.direction}</div>
+            <div class="insight-text">${t.magnitude}</div>
+            ${t.projection ? `<div class="insight-text" style="margin-top:6px;color:var(--amber);">Projection: ${t.projection}</div>` : ''}
+            ${t.recommendation ? `<div class="insight-action">→ ${t.recommendation}</div>` : ''}
+          </div>
+        `).join('');
+      }
+
+      if (a?.predictions?.length) {
+        html += `<div style="margin-top:20px;">
+          <div class="brief-section-title">Predictions</div>
+          ${a.predictions.map(p => `
+            <div class="brief-item">
+              <strong>${p.timeframe}:</strong> ${p.prediction}
+              <span style="color:var(--text-muted);font-size:11px;"> (${p.confidence} confidence, based on: ${p.based_on})</span>
+            </div>
+          `).join('')}
+        </div>`;
+      }
+
+      if (a?.bright_spots?.length) {
+        html += `<div style="margin-top:16px;">
+          <div class="brief-section-title">Bright Spots</div>
+          ${a.bright_spots.map(b => `<div class="brief-item" style="color:var(--green);">+ ${b}</div>`).join('')}
+        </div>`;
+      }
+
+      if (a?.weekly_focus) {
+        html += `<div class="brief-focus" style="margin-top:16px;">
+          <div class="brief-focus-title">This Week's Focus</div>
+          <div class="brief-focus-text">${a.weekly_focus}</div>
+        </div>`;
+      }
+
+      html += `<div style="margin-top:16px;font-size:11px;color:var(--text-muted);">
+        ${data.daysAnalyzed} days analyzed · ${(data.processingTime/1000).toFixed(1)}s · 100% local
+      </div>`;
+
+      el.innerHTML = `<div class="result-card">${html}</div>`;
+    }
+
+    function renderBrief(data) {
+      const el = document.getElementById('tab-brief');
+      const b = data.brief;
+
+      if (b?.raw) {
+        el.innerHTML = `<div class="result-card"><pre style="white-space:pre-wrap;font-size:13px;color:var(--text-dim);">${b.raw}</pre></div>`;
+        return;
+      }
+
+      let html = '';
+      if (b?.greeting) html += `<div class="brief-greeting">${b.greeting}</div>`;
+
+      if (b?.top_insight) {
+        html += `<div class="insight-card severity-high" style="border-left-color:var(--cyan);">
+          <div class="insight-title">${b.top_insight.emoji || ''} ${b.top_insight.title}</div>
+          <div class="insight-text">${b.top_insight.detail}</div>
+        </div>`;
+      }
+
+      if (b?.scores) {
+        html += `<div class="scores-grid">
+          ${scoreCard('Sleep', b.scores.sleep_score)}
+          ${scoreCard('Recovery', b.scores.recovery_score)}
+          ${scoreCard('Activity', b.scores.activity_score)}
+          ${scoreCard('Weekly', b.scores.weekly_score)}
+        </div>`;
+      }
+
+      if (b?.wins?.length) {
+        html += `<div class="brief-section">
+          <div class="brief-section-title">Wins This Week</div>
+          ${b.wins.map(w => `<div class="brief-item" style="color:var(--green);">+ ${w}</div>`).join('')}
+        </div>`;
+      }
+
+      if (b?.watch_out?.length) {
+        html += `<div class="brief-section">
+          <div class="brief-section-title">Watch Out</div>
+          ${b.watch_out.map(w => `<div class="brief-item" style="color:var(--amber);">⚠ ${w}</div>`).join('')}
+        </div>`;
+      }
+
+      if (b?.goal_progress?.length) {
+        html += `<div class="brief-section">
+          <div class="brief-section-title">Goal Progress</div>
+          ${b.goal_progress.map(g => `
+            <div class="brief-item">
+              <strong>${g.goal}</strong>
+              <span class="agent-tag ${g.status === 'on_track' ? 'tag-done' : g.status === 'improving' ? 'tag-local' : 'tag-running'}" style="margin-left:8px;">${g.status}</span>
+              <div style="margin-top:4px;">${g.detail}</div>
+            </div>
+          `).join('')}
+        </div>`;
+      }
+
+      if (b?.focus_this_week) {
+        html += `<div class="brief-focus">
+          <div class="brief-focus-title">Focus This Week: ${b.focus_this_week.what}</div>
+          <div class="brief-focus-text">${b.focus_this_week.why}</div>
+          <div class="brief-focus-text" style="margin-top:8px;color:var(--green);">How: ${b.focus_this_week.how}</div>
+        </div>`;
+      }
+
+      if (b?.shareable_summary) {
+        html += `<div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--text-muted);font-style:italic;">"${b.shareable_summary}"</span>
+          <button class="share-btn" onclick="copyShare('${escape(b.shareable_summary)}')">Copy to share</button>
+        </div>`;
+      }
+
+      html += `<div style="margin-top:16px;font-size:11px;color:var(--text-muted);">
+        Week of ${data.weekOf} · ${(data.processingTime/1000).toFixed(1)}s · 100% local
+      </div>`;
+
+      el.innerHTML = `<div class="result-card">${html}</div>`;
+    }
+
+    function scoreCard(label, value) {
+      const cls = value >= 70 ? 'score-good' : value >= 50 ? 'score-ok' : 'score-bad';
+      return `<div class="score-card">
+        <div class="score-value ${cls}">${value || '—'}</div>
+        <div class="score-label">${label}</div>
+      </div>`;
+    }
+
+    function showTab(name) {
+      document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('[id^="tab-"]').forEach(t => t.classList.add('hidden'));
+
+      event.target.classList.add('active');
+      document.getElementById(`tab-${name}`).classList.remove('hidden');
+    }
+
+    function copyShare(text) {
+      navigator.clipboard.writeText(unescape(text));
+      const btn = event.target;
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Share', 1500);
+    }
+  </script>
+</body>
+</html>

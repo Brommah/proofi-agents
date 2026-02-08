@@ -1,0 +1,44 @@
+{
+  "name": "@proofi/health-analyzer-agent",
+  "version": "1.0.0",
+  "description": "Health Analyzer Agent - Analyzes user health data using Proofi capability tokens",
+  "main": "dist/server.js",
+  "type": "module",
+  "bin": {
+    "proofi-health-analyzer": "./dist/local.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "npx tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "local": "tsx src/local.ts",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "proofi",
+    "health",
+    "agent",
+    "ai",
+    "analysis"
+  ],
+  "author": "Proofi",
+  "license": "MIT",
+  "dependencies": {
+    "@cere-ddc-sdk/ddc-client": "^2.16.1",
+    "@hono/node-server": "^1.8.0",
+    "dotenv": "^16.3.1",
+    "hono": "^4.0.0",
+    "openai": "^4.20.0",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

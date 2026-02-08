@@ -1,0 +1,609 @@
+#!/usr/bin/env node
+/**
+ * Pure Mode - Local Health Analyzer
+ * 
+ * Run health analysis entirely on your machine.
+ * YOUR DATA NEVER LEAVES YOUR DEVICE (unless you choose to use an external AI API).
+ * 
+ * Maximum transparency. Zero trust required.
+ * 
+ * Usage:
+ *   npm run local
+ *   npx proofi-health-analyzer
+ *   node dist/local.js --bucket abc123 --key ./my-key.json
+ */
+
+import 'dotenv/config';
+import fs from 'fs';
+import path from 'path';
+import readline from 'readline';
+import { analyzeHealthData } from './analyze.js';
+import { auditLog, hashData } from './audit.js';
+import { unwrapDEK, decryptAES, isTokenExpired, hasScope, type CapabilityToken } from './crypto.js';
+import type { HealthMetrics, HealthInsights, AuditEntry } from './types.js';
+
+// =============================================================================
+// CONFIGURATION
+// =============================================================================
+
+interface LocalConfig {
+  bucketId: string;
+  cid?: string;  // DDC content ID to fetch
+  tokenPath?: string;  // Path to capability token JSON
+  agentKeyPath?: string;  // Path to agent's X25519 private key
+  keyPath?: string;  // Legacy: direct key path
+  outputPath: string;
+  useLocalAI: boolean;
+  verbose: boolean;
+}
+
+interface LocalAuditLog {
+  sessionId: string;
+  startedAt: string;
+  completedAt?: string;
+  config: Omit<LocalConfig, 'keyPath'>; // Don't log key path
+  dataHash: string;
+  resultHash?: string;
+  entries: AuditEntry[];
+  insights?: HealthInsights;
+}
+
+// =============================================================================
+// CLI INTERFACE
+// =============================================================================
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+function prompt(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      resolve(answer.trim());
+    });
+  });
+}
+
+function printBanner(): void {
+  console.log(`
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║   ██████╗ ██╗   ██╗██████╗ ███████╗    ███╗   ███╗ ██████╗ ██████╗ ███████╗  ║
+║   ██╔══██╗██║   ██║██╔══██╗██╔════╝    ████╗ ████║██╔═══██╗██╔══██╗██╔════╝  ║
+║   ██████╔╝██║   ██║██████╔╝█████╗      ██╔████╔██║██║   ██║██║  ██║█████╗    ║
+║   ██╔═══╝ ██║   ██║██╔══██╗██╔══╝      ██║╚██╔╝██║██║   ██║██║  ██║██╔══╝    ║
+║   ██║     ╚██████╔╝██║  ██║███████╗    ██║ ╚═╝ ██║╚██████╔╝██████╔╝███████╗  ║
+║   ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚══════╝    ╚═╝     ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝  ║
+║                                                                              ║
+║                     Health Analyzer - Local Execution                        ║
+║                                                                              ║
+║   Your data NEVER leaves your device.                                        ║
+║   Maximum transparency. Full audit trail.                                    ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+`);
+}
+
+function printStep(step: number, total: number, message: string): void {
+  console.log(`\n[${step}/${total}] ${message}`);
+  console.log('─'.repeat(60));
+}
+
+// =============================================================================
+// DDC INTEGRATION (SIMULATED FOR NOW)
+// =============================================================================
+
+/**
+ * Fetch encrypted data from DDC
+ * 
+ * In a real implementation, this would:
+ * 1. Connect to Cere DDC using the bucket ID
+ * 2. Download the encrypted health data blob
+ * 3. Return the raw encrypted bytes
+ */
+async function fetchFromDDC(bucketId: string, cid?: string): Promise<Uint8Array> {
+  console.log(`  → Connecting to DDC bucket: ${bucketId}`);
+  
+  // Check if there's local test data first (for offline testing)
+  const testDataPath = path.join(process.cwd(), 'test-data', `${bucketId}.json`);
+  if (fs.existsSync(testDataPath)) {
+    console.log(`  → Found local test data at ${testDataPath}`);
+    const data = fs.readFileSync(testDataPath);
+    return new Uint8Array(data);
+  }
+  
+  // Real DDC integration
+  if (!cid) {
+    console.log(`  → No CID provided, using demo data`);
+    return new Uint8Array([0]);
+  }
+  
+  try {
+    // Use CDN for public bucket reads (simpler, no signer needed)
+    const cdnUrl = `https://cdn.ddc-dragon.com/${bucketId}/${cid}`;
+    console.log(`  → Fetching from DDC CDN...`);
+    
+    const response = await fetch(cdnUrl);
+    if (!response.ok) {
+      throw new Error(`CDN fetch failed: ${response.status} ${response.statusText}`);
+    }
+    
+    const buffer = await response.arrayBuffer();
+    const result = new Uint8Array(buffer);
+    
+    console.log(`  → Downloaded ${result.length} bytes from DDC CDN`);
+    return result;
+  } catch (error: any) {
+    console.error(`  ✗ DDC fetch failed: ${error.message}`);
+    console.log(`  → Falling back to demo data`);
+    return new Uint8Array([0]);
+  }
+}
+
+/**
+ * Decrypt data with user's key
+ * 
+ * In a real implementation, this would:
+ * 1. Load the user's private key from the specified path
+ * 2. Use NaCl box_open to decrypt the data
+ * 3. Return the decrypted JSON
+ */
+async function decryptData(
+  encryptedData: Uint8Array,
+  token?: CapabilityToken,
+  agentPrivateKey?: Uint8Array
+): Promise<HealthMetrics> {
+  console.log(`  → Decrypting data locally...`);
+  
+  // If we have a capability token and agent key, do real decryption
+  if (token && agentPrivateKey) {
+    console.log(`  → Using capability token for decryption`);
+    
+    // Check token validity
+    if (isTokenExpired(token)) {
+      throw new Error('Capability token has expired');
+    }
+    
+    if (!hasScope(token, 'health')) {
+      throw new Error('Token does not grant health data access');
+    }
+    
+    console.log(`  → Token valid, expires in ${token.exp - Math.floor(Date.now()/1000)}s`);
+    
+    // Unwrap DEK using agent's private key
+    console.log(`  → Unwrapping DEK with agent private key...`);
+    const dek = unwrapDEK(token.wrappedDEK, agentPrivateKey);
+    console.log(`  → DEK unwrapped (${dek.length} bytes)`);
+    
+    // Parse the encrypted blob (it contains ciphertext + iv)
+    const encryptedStr = new TextDecoder().decode(encryptedData);
+    let encryptedBlob: { ciphertext: string; iv: string };
+    
+    try {
+      encryptedBlob = JSON.parse(encryptedStr);
+    } catch {
+      throw new Error('Invalid encrypted data format');
+    }
+    
+    // Decrypt with AES-GCM
+    console.log(`  → Decrypting with AES-256-GCM...`);
+    const decrypted = await decryptAES(encryptedBlob.ciphertext, encryptedBlob.iv, dek);
+    const healthData = JSON.parse(decrypted);
+    
+    console.log(`  ✓ Decrypted ${decrypted.length} bytes of health data`);
+    return healthData;
+  }
+  
+  // Fallback: use demo data
+  console.log(`  → No token/key provided, using demo data`);
+  await new Promise(resolve => setTimeout(resolve, 300));
+  return generateDemoHealthData();
+}
+
+/**
+ * Generate demo health data for testing
+ */
+function generateDemoHealthData(): HealthMetrics {
+  const today = new Date();
+  const dates = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - (13 - i));
+    return d.toISOString().split('T')[0];
+  });
+  
+  return {
+    steps: dates.map((date, i) => ({
+      date,
+      count: 6000 + Math.floor(Math.random() * 8000) + (i * 200),
+      distance: 4000 + Math.floor(Math.random() * 5000),
+    })),
+    sleep: dates.map((date, i) => ({
+      date,
+      duration: 5.5 + Math.random() * 2.5 + (i * 0.05),
+      quality: (['fair', 'good', 'good', 'excellent'] as const)[Math.floor(Math.random() * 4)],
+    })),
+    mood: dates.map((date, i) => ({
+      date,
+      score: 5 + Math.floor(Math.random() * 4) + (i % 3 === 0 ? 1 : 0),
+      notes: i % 3 === 0 ? 'Feeling good today' : undefined,
+    })),
+  };
+}
+
+// =============================================================================
+// AUDIT LOG
+// =============================================================================
+
+function saveAuditLog(auditData: LocalAuditLog, outputPath: string): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `health-analysis-audit-${timestamp}.json`;
+  const fullPath = path.join(outputPath, filename);
+  
+  // Ensure output directory exists
+  if (!fs.existsSync(outputPath)) {
+    fs.mkdirSync(outputPath, { recursive: true });
+  }
+  
+  fs.writeFileSync(fullPath, JSON.stringify(auditData, null, 2));
+  return fullPath;
+}
+
+// =============================================================================
+// MAIN FLOW
+// =============================================================================
+
+async function runInteractive(): Promise<void> {
+  printBanner();
+  
+  console.log('\n📋 This tool runs health analysis ENTIRELY on your machine.\n');
+  console.log('   Data Flow:');
+  console.log('   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐');
+  console.log('   │ Your Device │ ←─ │     DDC     │    │   AI Model  │');
+  console.log('   │  (decrypt)  │    │ (encrypted) │    │   (local*)  │');
+  console.log('   └──────┬──────┘    └─────────────┘    └──────┬──────┘');
+  console.log('          │                                      │');
+  console.log('          └──────────────┬───────────────────────┘');
+  console.log('                         │');
+  console.log('                ┌────────▼────────┐');
+  console.log('                │   Local Audit   │');
+  console.log('                │      Log        │');
+  console.log('                └─────────────────┘');
+  console.log('\n   * Uses OpenAI API if OPENAI_API_KEY is set, otherwise rule-based analysis\n');
+  
+  // Step 1: Get bucket ID
+  printStep(1, 5, '🪣 Enter your DDC Bucket ID');
+  console.log('   This is where your encrypted health data is stored.');
+  const bucketId = await prompt('\n   Bucket ID: ');
+  
+  if (!bucketId) {
+    console.log('\n   ⚠️  No bucket ID provided. Using demo mode with sample data.\n');
+  }
+  
+  // Step 2: Get key path (optional)
+  printStep(2, 5, '🔑 Wallet / Key File (optional)');
+  console.log('   Path to your wallet or key file for decryption.');
+  console.log('   Leave empty to use demo data.\n');
+  const keyPath = await prompt('   Key path (or press Enter to skip): ');
+  
+  // Step 3: Output location
+  printStep(3, 5, '📁 Audit Log Location');
+  const defaultOutput = path.join(process.cwd(), 'audit-logs');
+  console.log(`   Where to save the audit log. Default: ${defaultOutput}\n`);
+  const outputInput = await prompt(`   Output path (Enter for default): `);
+  const outputPath = outputInput || defaultOutput;
+  
+  // Step 4: Confirm
+  printStep(4, 5, '✅ Confirm Configuration');
+  console.log(`   • Bucket ID:  ${bucketId || '(demo mode)'}`);
+  console.log(`   • Key File:   ${keyPath || '(not provided)'}`);
+  console.log(`   • Output:     ${outputPath}`);
+  console.log(`   • AI Mode:    ${process.env.OPENAI_API_KEY ? 'OpenAI GPT-4' : 'Rule-based (local)'}`);
+  
+  const confirm = await prompt('\n   Proceed? (Y/n): ');
+  if (confirm.toLowerCase() === 'n') {
+    console.log('\n   Cancelled.\n');
+    rl.close();
+    return;
+  }
+  
+  // Step 5: Run analysis
+  printStep(5, 5, '🔬 Running Analysis');
+  
+  const config: LocalConfig = {
+    bucketId: bucketId || 'demo',
+    keyPath: keyPath || undefined,
+    outputPath,
+    useLocalAI: !process.env.OPENAI_API_KEY,
+    verbose: true,
+  };
+  
+  const result = await runAnalysis(config);
+  
+  // Print results
+  console.log('\n');
+  console.log('═'.repeat(60));
+  console.log('                      ANALYSIS RESULTS');
+  console.log('═'.repeat(60));
+  
+  if (result.insights) {
+    console.log(`\n📊 Summary: ${result.insights.summary}\n`);
+    
+    if (result.insights.trends.length > 0) {
+      console.log('📈 Trends:');
+      for (const trend of result.insights.trends) {
+        const arrow = trend.direction === 'improving' ? '↑' : trend.direction === 'declining' ? '↓' : '→';
+        console.log(`   ${arrow} [${trend.category}] ${trend.description}`);
+      }
+    }
+    
+    if (result.insights.recommendations.length > 0) {
+      console.log('\n💡 Recommendations:');
+      for (const rec of result.insights.recommendations) {
+        const priority = rec.priority === 'high' ? '🔴' : rec.priority === 'medium' ? '🟡' : '🟢';
+        console.log(`   ${priority} ${rec.title}`);
+        console.log(`      ${rec.description}\n`);
+      }
+    }
+    
+    if (result.insights.alerts && result.insights.alerts.length > 0) {
+      console.log('⚠️  Alerts:');
+      for (const alert of result.insights.alerts) {
+        console.log(`   • [${alert.severity.toUpperCase()}] ${alert.message}`);
+      }
+    }
+  }
+  
+  console.log('\n' + '═'.repeat(60));
+  console.log(`📝 Audit log saved: ${result.auditPath}`);
+  console.log(`   Data hash:   ${result.dataHash.substring(0, 16)}...`);
+  console.log(`   Result hash: ${result.resultHash?.substring(0, 16)}...`);
+  console.log('═'.repeat(60));
+  
+  console.log('\n✅ Analysis complete! Your data stayed on your machine.\n');
+  
+  rl.close();
+}
+
+async function runAnalysis(config: LocalConfig): Promise<{
+  insights: HealthInsights | null;
+  auditPath: string;
+  dataHash: string;
+  resultHash: string | null;
+}> {
+  const sessionId = `local_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const startedAt = new Date().toISOString();
+  
+  auditLog.clear();
+  
+  console.log(`\n  Session: ${sessionId}`);
+  console.log(`  Started: ${startedAt}\n`);
+  
+  // Fetch from DDC
+  auditLog.log('data_fetched', {
+    bucketId: config.bucketId,
+    source: 'ddc',
+    note: 'Fetching encrypted data from DDC',
+  });
+  
+  const encryptedData = await fetchFromDDC(config.bucketId, config.cid);
+  console.log(`  ✓ Fetched ${encryptedData.length} bytes from DDC`);
+  
+  // Load capability token and agent key if provided
+  let token: CapabilityToken | undefined;
+  let agentPrivateKey: Uint8Array | undefined;
+  
+  if (config.tokenPath && fs.existsSync(config.tokenPath)) {
+    console.log(`  → Loading capability token from ${config.tokenPath}`);
+    token = JSON.parse(fs.readFileSync(config.tokenPath, 'utf-8'));
+    console.log(`  ✓ Token loaded (id: ${token!.id.substring(0, 12)}...)`);
+  }
+  
+  if (config.agentKeyPath && fs.existsSync(config.agentKeyPath)) {
+    console.log(`  → Loading agent private key from ${config.agentKeyPath}`);
+    const keyData = JSON.parse(fs.readFileSync(config.agentKeyPath, 'utf-8'));
+    // Support both raw base64 and structured key files
+    const keyB64 = typeof keyData === 'string' ? keyData : keyData.secretKey || keyData.privateKey;
+    const { decodeBase64 } = await import('tweetnacl-util');
+    agentPrivateKey = decodeBase64(keyB64);
+    console.log(`  ✓ Agent key loaded (${agentPrivateKey.length} bytes)`);
+  }
+  
+  // Decrypt locally
+  auditLog.log('data_decrypted', {
+    note: 'Decrypting data with capability token',
+    tokenProvided: !!token,
+    keyProvided: !!agentPrivateKey,
+  });
+  
+  const healthData = await decryptData(encryptedData, token, agentPrivateKey);
+  const dataHash = hashData(healthData);
+  console.log(`  ✓ Decrypted health data (hash: ${dataHash.substring(0, 16)}...)`);
+  
+  // Analyze
+  const model = config.useLocalAI ? 'rule-based (local)' : 'gpt-4o-mini (API)';
+  auditLog.log('inference_started', {
+    model,
+    inputHash: dataHash,
+    note: 'Starting health analysis',
+  });
+  
+  console.log(`  ⏳ Analyzing with ${model}...`);
+  const insights = await analyzeHealthData(healthData);
+  const resultHash = hashData(insights);
+  
+  auditLog.log('inference_completed', {
+    model,
+    outputHash: resultHash,
+    trendsCount: insights.trends.length,
+    recommendationsCount: insights.recommendations.length,
+    note: 'Analysis complete',
+  });
+  
+  console.log(`  ✓ Analysis complete (hash: ${resultHash.substring(0, 16)}...)`);
+  
+  // Save audit log
+  const completedAt = new Date().toISOString();
+  const auditData: LocalAuditLog = {
+    sessionId,
+    startedAt,
+    completedAt,
+    config: {
+      bucketId: config.bucketId,
+      outputPath: config.outputPath,
+      useLocalAI: config.useLocalAI,
+      verbose: config.verbose,
+    },
+    dataHash,
+    resultHash,
+    entries: auditLog.getEntries(),
+    insights,
+  };
+  
+  const auditPath = saveAuditLog(auditData, config.outputPath);
+  console.log(`  ✓ Audit log saved to ${auditPath}`);
+  
+  return {
+    insights,
+    auditPath,
+    dataHash,
+    resultHash,
+  };
+}
+
+// =============================================================================
+// CLI ARGUMENT PARSING
+// =============================================================================
+
+function parseArgs(): { interactive: boolean; config: Partial<LocalConfig> } {
+  const args = process.argv.slice(2);
+  const config: Partial<LocalConfig> = {};
+  let interactive = true;
+  
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const next = args[i + 1];
+    
+    switch (arg) {
+      case '--bucket':
+      case '-b':
+        config.bucketId = next;
+        i++;
+        interactive = false;
+        break;
+      case '--cid':
+      case '-c':
+        config.cid = next;
+        i++;
+        break;
+      case '--token':
+      case '-t':
+        config.tokenPath = next;
+        i++;
+        break;
+      case '--agent-key':
+        config.agentKeyPath = next;
+        i++;
+        break;
+      case '--key':
+      case '-k':
+        config.keyPath = next;
+        i++;
+        break;
+      case '--output':
+      case '-o':
+        config.outputPath = next;
+        i++;
+        break;
+      case '--verbose':
+      case '-v':
+        config.verbose = true;
+        break;
+      case '--help':
+      case '-h':
+        printHelp();
+        process.exit(0);
+        break;
+    }
+  }
+  
+  return { interactive, config };
+}
+
+function printHelp(): void {
+  console.log(`
+Pure Mode - Local Health Analyzer
+
+USAGE:
+  npm run local                    Interactive mode
+  npm run local -- --bucket <id>   Non-interactive with bucket ID
+
+OPTIONS:
+  -b, --bucket <id>      DDC bucket ID containing your health data
+  -k, --key <path>       Path to wallet/key file for decryption
+  -o, --output <path>    Directory to save audit logs (default: ./audit-logs)
+  -v, --verbose          Enable verbose output
+  -h, --help             Show this help message
+
+EXAMPLES:
+  npm run local
+  npm run local -- --bucket abc123 --key ./my-wallet.json
+  npm run local -- -b abc123 -o ./my-logs
+
+ENVIRONMENT:
+  OPENAI_API_KEY         If set, uses OpenAI for analysis
+                         If not set, uses local rule-based analysis
+
+SECURITY:
+  • All decryption happens locally on your machine
+  • Your raw health data never leaves your device
+  • If using OpenAI, only anonymized summaries are sent
+  • Full audit log is saved locally for verification
+
+For true local AI (no external API calls), consider:
+  • Ollama with a local model (llama2, mistral)
+  • See README.md for setup instructions
+`);
+}
+
+// =============================================================================
+// ENTRY POINT
+// =============================================================================
+
+async function main(): Promise<void> {
+  const { interactive, config } = parseArgs();
+  
+  if (interactive) {
+    await runInteractive();
+  } else {
+    // Non-interactive mode
+    if (!config.bucketId) {
+      console.error('Error: --bucket is required in non-interactive mode');
+      process.exit(1);
+    }
+    
+    const fullConfig: LocalConfig = {
+      bucketId: config.bucketId,
+      cid: config.cid,
+      tokenPath: config.tokenPath,
+      agentKeyPath: config.agentKeyPath,
+      keyPath: config.keyPath,
+      outputPath: config.outputPath || path.join(process.cwd(), 'audit-logs'),
+      useLocalAI: !process.env.OPENAI_API_KEY,
+      verbose: config.verbose || false,
+    };
+    
+    console.log('Running health analysis in Pure Mode...\n');
+    const result = await runAnalysis(fullConfig);
+    
+    console.log('\n✅ Complete!');
+    console.log(`   Audit log: ${result.auditPath}`);
+    
+    process.exit(0);
+  }
+}
+
+main().catch((error) => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});

@@ -117,35 +117,19 @@ async function fetchFromDDC(bucketId: string, cid?: string): Promise<Uint8Array>
   }
   
   try {
-    const { DdcClient, MAINNET } = await import('@cere-ddc-sdk/ddc-client');
+    // Use CDN for public bucket reads (simpler, no signer needed)
+    const cdnUrl = `https://cdn.ddc-dragon.com/${bucketId}/${cid}`;
+    console.log(`  → Fetching from DDC CDN...`);
     
-    console.log(`  → Connecting to Cere DDC Mainnet...`);
-    const client = await DdcClient.create(MAINNET);
-    
-    console.log(`  → Fetching CID: ${cid.substring(0, 20)}...`);
-    const fileResponse = await client.read(BigInt(bucketId), cid);
-    
-    // Read the file content
-    const chunks: Uint8Array[] = [];
-    const reader = fileResponse.body?.getReader();
-    if (!reader) throw new Error('No reader available');
-    
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) chunks.push(value);
+    const response = await fetch(cdnUrl);
+    if (!response.ok) {
+      throw new Error(`CDN fetch failed: ${response.status} ${response.statusText}`);
     }
     
-    // Combine chunks
-    const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-    const result = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      result.set(chunk, offset);
-      offset += chunk.length;
-    }
+    const buffer = await response.arrayBuffer();
+    const result = new Uint8Array(buffer);
     
-    console.log(`  → Downloaded ${result.length} bytes from DDC`);
+    console.log(`  → Downloaded ${result.length} bytes from DDC CDN`);
     return result;
   } catch (error: any) {
     console.error(`  ✗ DDC fetch failed: ${error.message}`);
